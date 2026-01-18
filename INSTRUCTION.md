@@ -1,116 +1,119 @@
-# Django Todo Application with MySQL - Docker Setup Instructions
-
-## Overview
-
-This guide provides step-by-step instructions to run the Django Todo application with MySQL database using Docker containers.
+# Instructions for Running Django-Todolist with MySQL
 
 ## Prerequisites
-
 - Docker installed on your machine
-- Docker Hub account (for pulling images)
+- Docker Hub account
 
-## Step 1: Run MySQL Container with Volume
+## Step 1: Build MySQL Image
 
-1. **Pull MySQL image from Docker Hub:**
-
-   ```bash
-   docker pull ikocherovets/mysql-local:1.0.0
-   ```
-
-2. **Run MySQL container with volume attached:**
-
-   ```bash
-   docker run -d \
-     --name mysql-container \
-     -p 3306:3306 \
-     -v mysql-data:/var/lib/mysql \
-     ikocherovets/mysql-local:1.0.0
-   ```
-
-3. **Verify MySQL container is running:**
-
-   ```bash
-   docker ps
-   ```
-
-4. **Check MySQL container IP address:**
-   ```bash
-   docker inspect mysql-container | grep "IPAddress"
-   ```
-
-## Step 2: Run Application Container
-
-1. **Pull the application image from Docker Hub:**
-
-   ```bash
-   docker pull ikocherovets/todoapp:2.0.0
-   ```
-
-2. **Run the application container:**
-   ```bash
-   docker run -p 8080:8080 ikocherovets/todoapp:2.0.0
-   ```
-
-## Step 3: Access the Application
-
-1. **Open your web browser and navigate to:**
-
-   ```
-   http://localhost:8080
-   ```
-
-2. **Available endpoints:**
-   - Main application: `http://localhost:8080/`
-   - API documentation: `http://localhost:8080/api/`
-   - Admin panel: `http://localhost:8080/admin/`
-
-## Docker Hub Repository Links
-
-- **Application Image:** `https://hub.docker.com/r/ikocherovets/todoapp`
-- **MySQL Image:** `https://hub.docker.com/r/ikocherovets/mysql-local`
-
-## Troubleshooting
-
-### If application fails to connect to MySQL:
-
-1. Ensure MySQL container is running and fully initialized
-2. Check the IP address of MySQL container
-3. Wait a few seconds for MySQL to complete initialization
-4. Restart the application container if needed
-
-### If port 8080 is already in use:
+Build the MySQL image from the Dockerfile.mysql:
 
 ```bash
-docker run -p 8081:8080 ikocherovets/todoapp:2.0.0
+docker build -f Dockerfile.mysql -t mysql-local:1.0.0 .
 ```
 
-Then access via `http://localhost:8081`
+## Step 2: Run MySQL Container with Volume Attached
 
-### To stop containers:
+Run the MySQL container with a persistent volume:
 
 ```bash
-docker stop mysql-container
-docker stop $(docker ps -q --filter ancestor=ikocherovets/todoapp:2.0.0)
+docker run -d \
+  --name mysql \
+  -v mysql_data:/var/lib/mysql \
+  -p 3306:3306 \
+  mysql-local:1.0.0
 ```
 
-### To remove containers and volumes:
+Wait for MySQL to fully initialize (about 30 seconds), then verify it's running:
 
 ```bash
-docker rm mysql-container
-docker volume rm mysql-data
+docker logs mysql
 ```
 
-## Application Features
+## Step 3: Build the Application Image
 
-- **User Authentication:** Register and login functionality
-- **Todo Management:** Create, read, update, and delete todo items
-- **API Access:** RESTful API for programmatic access
-- **Responsive UI:** Clean and simple interface using Skeleton CSS
+Build the Django application image:
 
-## Technical Details
+```bash
+docker build -t todoapp:2.0.0 .
+```
 
-- **Python Version:** 3.8
-- **Django Version:** 4.1.10
-- **MySQL Version:** 8.0
-- **Database:** MySQL with persistent volume storage
-- **Port Mapping:** Application runs on port 8080, MySQL on port 3306
+## Step 4: Run the Application Container
+
+Run the app container connected to the MySQL container:
+
+```bash
+docker run -d \
+  --name todoapp \
+  --link mysql:mysql \
+  -p 8080:8080 \
+  todoapp:2.0.0
+```
+
+## Step 5: Access the Application
+
+Open your browser and navigate to:
+
+```
+http://localhost:8080
+```
+
+## Docker Hub Repository
+
+The application image is available at:
+- **Docker Hub**: https://hub.docker.com/r/ikocherovets/todoapp
+
+The MySQL image is available at 
+- **Docker Hub**: https://hub.docker.com/r/ikocherovets/mysql-local 
+
+To push images to Docker Hub:
+
+```bash
+# Login to Docker Hub
+docker login
+
+# Tag and push MySQL image
+docker tag mysql-local:1.0.0 <YOUR_DOCKERHUB_USERNAME>/mysql-local:1.0.0
+docker push <YOUR_DOCKERHUB_USERNAME>/mysql-local:1.0.0
+
+# Tag and push App image
+docker tag todoapp:2.0.0 ikocherovets/todoapp:2.0.0
+docker push ikocherovets/todoapp:2.0.0
+```
+
+## Using Docker Network (Alternative to --link)
+
+For better container networking, you can use Docker networks:
+
+```bash
+# Create a network
+docker network create todoapp-network
+
+# Run MySQL container on the network
+docker run -d \
+  --name mysql \
+  --network todoapp-network \
+  -v mysql_data:/var/lib/mysql \
+  -p 3306:3306 \
+  mysql-local:1.0.0
+
+# Run App container on the same network
+docker run -d \
+  --name todoapp \
+  --network todoapp-network \
+  -p 8080:8080 \
+  todoapp:2.0.0
+```
+
+## Stopping and Removing Containers
+
+```bash
+# Stop containers
+docker stop todoapp mysql
+
+# Remove containers
+docker rm todoapp mysql
+
+# Remove volume (if needed)
+docker volume rm mysql_data
+```
